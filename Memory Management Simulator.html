@@ -1,0 +1,186 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Memory Management Simulator</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; }
+        h2 { color: #2c3e50; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        
+        /* Dashboard Style Groups */
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .control-group { background: #ecf0f1; padding: 15px; border-radius: 8px; border: 1px solid #dcdde1; }
+        .control-group h4 { margin-top: 0; color: #2980b9; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }
+        
+        .input-item { margin-bottom: 10px; display: flex; flex-direction: column; }
+        label { font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #34495e; }
+        
+        input, select, button { padding: 10px; border-radius: 5px; border: 1px solid #bdc3c7; width: 100%; box-sizing: border-box; }
+        button { background-color: #3498db; color: white; cursor: pointer; border: none; font-weight: bold; margin-top: 10px; }
+        button:hover { background-color: #2980b9; }
+        .dealloc-btn { background-color: #e74c3c; }
+        .dealloc-btn:hover { background-color: #c0392b; }
+
+        /* Status Indicator */
+        .status-bar { background: #2c3e50; color: #ecf0f1; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; text-align: center; font-weight: bold; }
+        #currentAlgoDisplay { color: #f1c40f; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background-color: #34495e; color: white; padding: 12px; }
+        td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .free { color: #27ae60; font-weight: bold; }
+        .occupied { color: #c0392b; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>💻 Memory Management Simulator</h2>
+
+    <div class="status-bar">
+        Active Mode: <span id="currentAlgoDisplay">None (Set Memory First)</span>
+    </div>
+
+    <div class="dashboard">
+        <div class="control-group">
+            <h4>1. Configuration</h4>
+            <div class="input-item">
+                <label>Total Memory Capacity (KB)</label>
+                <input type="number" id="totalMem" >
+            </div>
+            <button onclick="initMemory()">Set Total Memory</button>
+        </div>
+
+        <div class="control-group">
+            <h4>2. Allocation</h4>
+            <div class="input-item">
+                <label>Process ID</label>
+                <input type="text" id="pid" >
+            </div>
+            <div class="input-item">
+                <label>Required Size (KB)</label>
+                <input type="number" id="pSize" >
+            </div>
+            <div class="input-item">
+                <label>Select Strategy</label>
+                <select id="algo">
+                    <option value="First Fit">First Fit</option>
+                    <option value="Best Fit">Best Fit</option>
+                    <option value="Worst Fit">Worst Fit</option>
+                </select>
+            </div>
+            <button onclick="allocate()">Allocate Memory</button>
+        </div>
+
+        <div class="control-group">
+            <h4>3. Deallocation</h4>
+            <div class="input-item">
+                <label>Target Process ID</label>
+                <input type="text" id="deallocId" >
+            </div>
+            <button class="dealloc-btn" onclick="deallocate()">Remove Process</button>
+        </div>
+    </div>
+
+    <table id="memTable">
+        <thead>
+            <tr>
+                <th>Start Address</th>
+                <th>Status</th>
+                <th>PID</th>
+                <th>Size (KB)</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    let memoryList = [];
+
+    function initMemory() {
+        const size = document.getElementById('totalMem').value;
+        if(!size) return alert("Please enter total memory!");
+        memoryList = [{ start: 0, size: parseInt(size), isFree: true, pid: "HOLE" }];
+        document.getElementById('currentAlgoDisplay').innerText = "Memory Ready";
+        updateTable();
+    }
+
+    function updateTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = "";
+        memoryList.sort((a, b) => a.start - b.start);
+        
+        memoryList.forEach(block => {
+            const row = `<tr>
+                <td>${block.start}</td>
+                <td class="${block.isFree ? 'free' : 'occupied'}">${block.isFree ? 'FREE' : 'OCCUPIED'}</td>
+                <td>${block.pid}</td>
+                <td>${block.size} KB</td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+    }
+
+    function allocate() {
+        const pid = document.getElementById('pid').value;
+        const size = parseInt(document.getElementById('pSize').value);
+        const algo = document.getElementById('algo').value;
+
+        if(!pid || !size) return alert("Enter PID and Size!");
+
+        let targetIndex = -1;
+        document.getElementById('currentAlgoDisplay').innerText = "Running: " + algo;
+
+        if (algo === 'First Fit') {
+            targetIndex = memoryList.findIndex(b => b.isFree && b.size >= size);
+        } else if (algo === 'Best Fit') {
+            let minDiff = Infinity;
+            memoryList.forEach((b, i) => {
+                if(b.isFree && b.size >= size && (b.size - size) < minDiff) {
+                    minDiff = b.size - size;
+                    targetIndex = i;
+                }
+            });
+        } else { // Worst Fit
+            let maxDiff = -1;
+            memoryList.forEach((b, i) => {
+                if(b.isFree && b.size >= size && (b.size - size) > maxDiff) {
+                    maxDiff = b.size - size;
+                    targetIndex = i;
+                }
+            });
+        }
+
+        if (targetIndex !== -1) {
+            let block = memoryList[targetIndex];
+            const newProcess = { start: block.start, size: size, isFree: false, pid: pid };
+            block.start += size;
+            block.size -= size;
+            if(block.size === 0) memoryList.splice(targetIndex, 1);
+            memoryList.push(newProcess);
+            updateTable();
+        } else {
+            alert("Insufficient Memory!");
+        }
+    }
+
+    function deallocate() {
+        const id = document.getElementById('deallocId').value;
+        let found = false;
+        memoryList.forEach(block => {
+            if (block.pid === id) {
+                block.isFree = true;
+                block.pid = "HOLE";
+                found = true;
+            }
+        });
+        if(!found) alert("Process not found!");
+        updateTable();
+    }
+</script>
+
+</body>
+</html>
